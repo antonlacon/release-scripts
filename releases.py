@@ -58,24 +58,33 @@ class ChunkedHash():
     # Calculate hash for chunked data
     @staticmethod
     def hash_bytestr_iter(bytesiter, hasher, ashexstr=True):
+        update = hasher.update
         for block in bytesiter:
-            hasher.update(block)
+            update(block)
         return (hasher.hexdigest() if ashexstr else hasher.digest())
 
     # Read file in blocks/chunks to be memory efficient
     @staticmethod
     def file_as_blockiter(afile, blocksize=65536):
-        with afile:
-          block = afile.read(blocksize)
-          while len(block) > 0:
-              yield block
-              block = afile.read(blocksize)
+        buf = bytearray(blocksize)
+        view = memoryview(buf)
+        readinto = afile.readinto
+
+        while True:
+            block = readinto(buf)
+            if not block:
+                break
+            yield view[:block]
 
     # Calculate sha256 hash for a file
     @staticmethod
     def calculate_sha256(fname):
         try:
-            return ChunkedHash.hash_bytestr_iter(ChunkedHash.file_as_blockiter(open(fname, 'rb')), hashlib.sha256())
+            with open(fname, 'rb') as f:
+                return ChunkedHash.hash_bytestr_iter(
+                    ChunkedHash.file_as_blockiter(f),
+                    hashlib.sha256()
+                )
         except Exception:
             raise
             return ''
